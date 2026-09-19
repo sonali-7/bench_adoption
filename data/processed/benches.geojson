@@ -1,0 +1,238 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "gis_id": "osm-node-6765115255",
+        "osm_id": 6765115255,
+        "osm_type": "node",
+        "gis_source": "OpenStreetMap amenity=bench",
+        "material": null,
+        "backrest": null,
+        "bench_type": null,
+        "name": null,
+        "extra": {}
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -73.8963095,
+          40.9092966
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "gis_id": "osm-node-6765115263",
+        "osm_id": 6765115263,
+        "osm_type": "node",
+        "gis_source": "OpenStreetMap amenity=bench",
+        "material": null,
+        "backrest": null,
+        "bench_type": null,
+        "name": null,
+        "extra": {}
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -73.8961881,
+          40.9093106
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "gis_id": "osm-node-6765115266",
+        "osm_id": 6765115266,
+        "osm_type": "node",
+        "gis_source": "OpenStreetMap amenity=bench",
+        "material": null,
+        "backrest": null,
+        "bench_type": null,
+        "name": null,
+        "extra": {}
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -73.8963168,
+          40.9093826
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "gis_id": "osm-node-6765115268",
+        "osm_id": 6765115268,
+        "osm_type": "node",
+        "gis_source": "OpenStreetMap amenity=bench",
+        "material": null,
+        "backrest": null,
+        "bench_type": null,
+        "name": null,
+        "extra": {}
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -73.8962049,
+          40.9093871
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "gis_id": "osm-node-9043834572",
+        "osm_id": 9043834572,
+        "osm_type": "node",
+        "gis_source": "OpenStreetMap amenity=bench",
+        "material": null,
+        "backrest": null,
+        "bench_type": "block",
+        "name": null,
+        "extra": {
+          "bench:type": "block"
+        }
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -73.8892148,
+          40.8935019
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "gis_id": "osm-node-9934725753",
+        "osm_id": 9934725753,
+        "osm_type": "node",
+        "gis_source": "OpenStreetMap amenity=bench",
+        "material": null,
+        "backrest": null,
+        "bench_type": null,
+        "name": null,
+        "extra": {}
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -73.896213,
+          40.903147
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "gis_id": "osm-node-13093276665",
+        "osm_id": 13093276665,
+        "osm_type": "node",
+        "gis_source": "OpenStreetMap amenity=bench",
+        "material": null,
+        "backrest": null,
+        "bench_type": null,
+        "name": null,
+        "extra": {}
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -73.8980808,
+          40.88884
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "gis_id": "osm-node-13093276666",
+        "osm_id": 13093276666,
+        "osm_type": "node",
+        "gis_source": "OpenStreetMap amenity=bench",
+        "material": null,
+        "backrest": null,
+        "bench_type": null,
+        "name": null,
+        "extra": {}
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -73.8981296,
+          40.8887392
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "gis_id": "osm-node-13093276667",
+        "osm_id": 13093276667,
+        "osm_type": "node",
+        "gis_source": "OpenStreetMap amenity=bench",
+        "material": null,
+        "backrest": null,
+        "bench_type": null,
+        "name": null,
+        "extra": {}
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -73.8978701,
+          40.889241
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "gis_id": "osm-node-13093276668",
+        "osm_id": 13093276668,
+        "osm_type": "node",
+        "gis_source": "OpenStreetMap amenity=bench",
+        "material": null,
+        "backrest": null,
+        "bench_type": null,
+        "name": null,
+        "extra": {}
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -73.8979676,
+          40.8889148
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "gis_id": "osm-node-13093276669",
+        "osm_id": 13093276669,
+        "osm_type": "node",
+        "gis_source": "OpenStreetMap amenity=bench",
+        "material": null,
+        "backrest": null,
+        "bench_type": null,
+        "name": null,
+        "extra": {}
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -73.8977898,
+          40.8896193
+        ]
+      }
+    }
+  ]
+}

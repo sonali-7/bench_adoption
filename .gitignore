@@ -1,0 +1,13 @@
+node_modules/
+dist/
+.DS_Store
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+server/var/
+data/*.raw.*
+data/*.raw.json
+data/amps-fountains.json
+data/dot-seating.json
+data/vcpa-map.jpg
+.vite/
