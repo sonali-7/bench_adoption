@@ -22,8 +22,14 @@ export const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     }),
-  adopt: (payload) =>
-    fetchJson("/api/adoptions", {
+  crowdsourceBench: (payload) =>
+    fetchJson("/api/benches/crowdsource", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }),
+  submitAdoptionRequest: (payload) =>
+    fetchJson("/api/adoption-requests", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),

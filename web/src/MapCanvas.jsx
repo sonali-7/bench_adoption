@@ -1,19 +1,47 @@
 import { useEffect, useMemo, useRef } from "react";
 import L from "leaflet";
-import { durationCopy, prettyId } from "./format.js";
+import {
+  adoptionStatusLabel,
+  displayValue,
+  durationCopy,
+  googleMapsUrl,
+  infoSourceLabel,
+  prettyId,
+  verificationLabel,
+} from "./format.js";
 
 const AVAILABLE = "#2f9e44";
 const ADOPTED = "#c92a2a";
+const UNKNOWN = "#868e96";
+const REQUEST = "#fab005";
+const CROWD = "#1971c2";
 const PROPOSED = "#e67700";
 
-function pinIcon(color, selected) {
+function benchPinColor(bench) {
+  if (bench.info_source === "crowdsourced" && bench.verification_status !== "verified") {
+    return CROWD;
+  }
+  switch (bench.adoption_status) {
+    case "adopted":
+      return ADOPTED;
+    case "available":
+      return AVAILABLE;
+    case "request_submitted":
+      return REQUEST;
+    default:
+      return UNKNOWN;
+  }
+}
+
+function pinIcon(color, selected, dashed = false) {
   const size = selected ? 28 : 22;
+  const dash = dashed ? " pin-glyph--dashed" : "";
   return L.divIcon({
     className: "bench-pin",
     iconSize: [size, size],
     iconAnchor: [size / 2, size - 2],
     popupAnchor: [0, -size + 4],
-    html: `<span class="pin-glyph" style="--pin:${color};width:${size}px;height:${size}px" aria-hidden="true"></span>`,
+    html: `<span class="pin-glyph${dash}" style="--pin:${color};width:${size}px;height:${size}px" aria-hidden="true"></span>`,
   });
 }
 
@@ -22,7 +50,18 @@ function proposedIcon() {
     className: "bench-pin",
     iconSize: [22, 22],
     iconAnchor: [11, 11],
+    popupAnchor: [0, -10],
     html: `<span class="proposal-glyph" aria-hidden="true"></span>`,
+  });
+}
+
+function existingDraftIcon() {
+  return L.divIcon({
+    className: "bench-pin",
+    iconSize: [24, 24],
+    iconAnchor: [12, 12],
+    popupAnchor: [0, -10],
+    html: `<span class="existing-draft-glyph" aria-hidden="true"></span>`,
   });
 }
 
@@ -31,31 +70,54 @@ function popupHtml(bench) {
   const sample = adoption?.is_sample
     ? `<p class="popup-note">Demonstration adoption record — not an official Parks donation listing.</p>`
     : "";
-  const adoptedBlock = adoption
-    ? `
+  const crowdNote = bench.is_crowdsourced
+    ? `<p class="popup-note">Crowdsourced information — pending verification; not presented as authoritative.</p>`
+    : "";
+
+  let adopteeBlock;
+  if (adoption) {
+    adopteeBlock = `
       <dt>Adoptee</dt><dd>${escapeHtml(adoption.adopter_name)}</dd>
       <dt>Adopted</dt><dd>${escapeHtml(adoption.adoption_date)}</dd>
       <dt>Duration</dt><dd>${escapeHtml(durationCopy(adoption.duration_months))}</dd>
       <dt>Time remaining</dt><dd>${escapeHtml(adoption.time_remaining)}</dd>
       <dt>Expires</dt><dd>${escapeHtml(adoption.expiration_date)}</dd>
-    `
-    : `<dt>Adoptee</dt><dd>Available for adoption</dd>`;
+    `;
+  } else if (bench.reported_adopter_name) {
+    adopteeBlock = `
+      <dt>Reported adoptee</dt><dd>${escapeHtml(bench.reported_adopter_name)}</dd>
+      <dt>Reported adoption date</dt><dd>${escapeHtml(displayValue(bench.reported_adoption_date))}</dd>
+      <dt>Reported duration</dt><dd>${escapeHtml(durationCopy(bench.reported_duration_months))}</dd>
+    `;
+  } else {
+    adopteeBlock = `<dt>Adoptee</dt><dd>${escapeHtml(displayValue(null, "Unknown"))}</dd>`;
+  }
+
   const extra = [];
   if (bench.bench_type) extra.push(`<dt>Type</dt><dd>${escapeHtml(bench.bench_type)}</dd>`);
   if (bench.material) extra.push(`<dt>Material</dt><dd>${escapeHtml(bench.material)}</dd>`);
   if (bench.backrest) extra.push(`<dt>Backrest</dt><dd>${escapeHtml(bench.backrest)}</dd>`);
+  if (bench.description) extra.push(`<dt>Description</dt><dd>${escapeHtml(bench.description)}</dd>`);
+  if (bench.notes) extra.push(`<dt>Notes</dt><dd>${escapeHtml(bench.notes)}</dd>`);
+
+  const mapsLink = `<p><a href="${escapeHtml(bench.google_maps_url || googleMapsUrl(bench.latitude, bench.longitude))}" target="_blank" rel="noopener noreferrer">View in Google Maps</a></p>`;
+
   return `
     <article class="popup-card">
       <h3>${escapeHtml(bench.gis_name || prettyId(bench.bench_id))}</h3>
       <dl>
         <dt>Bench ID</dt><dd>${escapeHtml(bench.bench_id)}</dd>
         <dt>Coordinates</dt><dd>${bench.latitude.toFixed(6)}, ${bench.longitude.toFixed(6)}</dd>
-        <dt>Status</dt><dd>${bench.status === "adopted" ? "Adopted" : "Available"}</dd>
-        ${adoptedBlock}
-        <dt>GIS source</dt><dd>${escapeHtml(bench.gis_source)}</dd>
+        <dt>Adoption status</dt><dd>${escapeHtml(adoptionStatusLabel(bench.adoption_status))}</dd>
+        ${adopteeBlock}
+        <dt>Information source</dt><dd>${escapeHtml(infoSourceLabel(bench.info_source))}</dd>
+        <dt>Verification</dt><dd>${escapeHtml(verificationLabel(bench.verification_status))}</dd>
+        <dt>GIS reference</dt><dd>${escapeHtml(displayValue(bench.gis_source))}</dd>
         ${extra.join("")}
       </dl>
+      ${mapsLink}
       ${sample}
+      ${crowdNote}
     </article>
   `;
 }
@@ -76,29 +138,47 @@ export default function MapCanvas({
   filter,
   selectedId,
   proposeMode,
+  addExistingMode,
   draftProposal,
-  overlayParkMap,
+  draftExisting,
   onSelectBench,
   onProposeClick,
+  onProposeMove,
+  onAddExistingClick,
+  onAddExistingMove,
   onOutsidePark,
 }) {
   const containerRef = useRef(null);
   const mapRef = useRef(null);
   const layersRef = useRef({});
+  const draftMarkerRef = useRef(null);
+  const existingDraftRef = useRef(null);
   const onSelectRef = useRef(onSelectBench);
   const parkRef = useRef(park);
   const proposeClickRef = useRef(onProposeClick);
+  const proposeMoveRef = useRef(onProposeMove);
+  const addExistingClickRef = useRef(onAddExistingClick);
+  const addExistingMoveRef = useRef(onAddExistingMove);
   const outsideRef = useRef(onOutsidePark);
   const proposeModeRef = useRef(proposeMode);
+  const addExistingModeRef = useRef(addExistingMode);
   onSelectRef.current = onSelectBench;
   parkRef.current = park;
   proposeClickRef.current = onProposeClick;
+  proposeMoveRef.current = onProposeMove;
+  addExistingClickRef.current = onAddExistingClick;
+  addExistingMoveRef.current = onAddExistingMove;
   outsideRef.current = onOutsidePark;
   proposeModeRef.current = proposeMode;
+  addExistingModeRef.current = addExistingMode;
 
   const visibleBenches = useMemo(() => {
-    if (filter === "available") return benches.filter((b) => b.status === "available");
-    if (filter === "adopted") return benches.filter((b) => b.status === "adopted");
+    if (filter === "available") {
+      return benches.filter((b) => b.adoption_status === "available");
+    }
+    if (filter === "adopted") {
+      return benches.filter((b) => b.adoption_status === "adopted");
+    }
     return benches;
   }, [benches, filter]);
 
@@ -116,8 +196,10 @@ export default function MapCanvas({
       maxZoom: 19,
     }).addTo(map);
 
-    const handleProposeEvent = (event) => {
-      if (!proposeModeRef.current) return;
+    const handlePlacementEvent = (event) => {
+      const inPropose = proposeModeRef.current;
+      const inAddExisting = addExistingModeRef.current;
+      if (!inPropose && !inAddExisting) return;
       L.DomEvent.stopPropagation(event);
       const { lat, lng } = event.latlng;
       const parkFc = parkRef.current;
@@ -125,7 +207,8 @@ export default function MapCanvas({
         outsideRef.current?.();
         return;
       }
-      proposeClickRef.current?.({ latitude: lat, longitude: lng });
+      if (inPropose) proposeClickRef.current?.({ latitude: lat, longitude: lng });
+      if (inAddExisting) addExistingClickRef.current?.({ latitude: lat, longitude: lng });
     };
 
     layersRef.current.park = L.geoJSON(null, {
@@ -136,7 +219,7 @@ export default function MapCanvas({
         fillOpacity: 0.22,
       },
       onEachFeature: (_feature, layer) => {
-        layer.on("click", handleProposeEvent);
+        layer.on("click", handlePlacementEvent);
       },
     }).addTo(map);
 
@@ -155,24 +238,19 @@ export default function MapCanvas({
         layer.bindPopup(
           `<strong>${escapeHtml(p.trail_name)}</strong><br/>${escapeHtml(p.surface || "")}`
         );
-        layer.on("click", handleProposeEvent);
+        layer.on("click", handlePlacementEvent);
       },
     }).addTo(map);
-
-    layersRef.current.overlay = L.imageOverlay("/vcpa-map.jpg", [
-      [40.88286, -73.89953],
-      [40.91133, -73.86801],
-    ], { opacity: 0, interactive: false }).addTo(map);
 
     layersRef.current.benches = L.layerGroup().addTo(map);
     layersRef.current.proposals = L.layerGroup().addTo(map);
     layersRef.current.draft = L.layerGroup().addTo(map);
+    layersRef.current.existingDraft = L.layerGroup().addTo(map);
 
-    map.on("click", handleProposeEvent);
+    map.on("click", handlePlacementEvent);
 
     mapRef.current = map;
-    map.options.vcpProposeMode = proposeModeRef.current;
-    map.getContainer().classList.toggle("is-proposing", proposeModeRef.current);
+    map.getContainer().classList.toggle("is-proposing", proposeModeRef.current || addExistingModeRef.current);
     return () => {
       map.remove();
       mapRef.current = null;
@@ -182,9 +260,8 @@ export default function MapCanvas({
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
-    map.options.vcpProposeMode = proposeMode;
-    map.getContainer().classList.toggle("is-proposing", proposeMode);
-  }, [proposeMode]);
+    map.getContainer().classList.toggle("is-proposing", proposeMode || addExistingMode);
+  }, [proposeMode, addExistingMode]);
 
   useEffect(() => {
     const layer = layersRef.current.park;
@@ -205,34 +282,37 @@ export default function MapCanvas({
   }, [trails]);
 
   useEffect(() => {
-    const overlay = layersRef.current.overlay;
-    if (!overlay) return;
-    overlay.setOpacity(overlayParkMap ? 0.45 : 0);
-  }, [overlayParkMap]);
-
-  useEffect(() => {
     const group = layersRef.current.benches;
     const map = mapRef.current;
     if (!group || !map) return;
     group.clearLayers();
     visibleBenches.forEach((bench) => {
       const selected = bench.bench_id === selectedId;
+      const color = benchPinColor(bench);
+      const dashed = bench.info_source === "crowdsourced" && bench.verification_status !== "verified";
       const marker = L.marker([bench.latitude, bench.longitude], {
-        icon: pinIcon(bench.status === "adopted" ? ADOPTED : AVAILABLE, selected),
+        icon: pinIcon(color, selected, dashed),
         zIndexOffset: selected ? 1000 : 0,
         keyboard: true,
-        title: `${bench.status === "adopted" ? "Adopted" : "Available"} bench ${bench.bench_id}`,
-        alt: `${bench.status === "adopted" ? "Adopted" : "Available"} bench ${bench.bench_id}`,
+        title: `${adoptionStatusLabel(bench.adoption_status)} — ${bench.bench_id}`,
+        alt: `${adoptionStatusLabel(bench.adoption_status)} bench ${bench.bench_id}`,
       });
       marker.bindPopup(popupHtml(bench), { maxWidth: 320 });
-      marker.on("click", () => onSelectRef.current?.(bench.bench_id));
+      marker.on("click", (event) => {
+        L.DomEvent.stopPropagation(event);
+        onSelectRef.current?.(bench.bench_id);
+      });
       marker.addTo(group);
     });
     const selected = visibleBenches.find((b) => b.bench_id === selectedId);
-    if (selected && !proposeModeRef.current) {
+    if (selected && !proposeModeRef.current && !addExistingModeRef.current) {
       group.eachLayer((layer) => {
         const latlng = layer.getLatLng?.();
-        if (latlng && Math.abs(latlng.lat - selected.latitude) < 1e-8 && Math.abs(latlng.lng - selected.longitude) < 1e-8) {
+        if (
+          latlng &&
+          Math.abs(latlng.lat - selected.latitude) < 1e-8 &&
+          Math.abs(latlng.lng - selected.longitude) < 1e-8
+        ) {
           if (!layer.isPopupOpen()) layer.openPopup();
         }
       });
@@ -252,6 +332,7 @@ export default function MapCanvas({
       marker.bindPopup(`
         <article class="popup-card">
           <h3>Proposed location</h3>
+          <p class="popup-note">This is a suggested bench location, not an existing bench in the inventory.</p>
           <dl>
             <dt>Proposal ID</dt><dd>${escapeHtml(proposal.proposal_id)}</dd>
             <dt>Coordinates</dt><dd>${Number(proposal.latitude).toFixed(6)}, ${Number(proposal.longitude).toFixed(6)}</dd>
@@ -269,14 +350,108 @@ export default function MapCanvas({
   useEffect(() => {
     const group = layersRef.current.draft;
     if (!group) return;
+
+    if (!draftProposal) {
+      group.clearLayers();
+      draftMarkerRef.current = null;
+      return;
+    }
+
+    const existing = draftMarkerRef.current;
+    if (existing && group.hasLayer(existing)) {
+      const current = existing.getLatLng();
+      if (
+        Math.abs(current.lat - draftProposal.latitude) > 1e-9 ||
+        Math.abs(current.lng - draftProposal.longitude) > 1e-9
+      ) {
+        existing.setLatLng([draftProposal.latitude, draftProposal.longitude]);
+      }
+      return;
+    }
+
     group.clearLayers();
-    if (!draftProposal) return;
-    L.marker([draftProposal.latitude, draftProposal.longitude], {
+    const marker = L.marker([draftProposal.latitude, draftProposal.longitude], {
       icon: proposedIcon(),
       zIndexOffset: 800,
-      title: "Draft proposed location",
-    }).addTo(group);
+      title: "Draft proposed location — drag to adjust",
+      draggable: true,
+      autoPan: true,
+    });
+    marker.on("dragend", () => {
+      const { lat, lng } = marker.getLatLng();
+      const parkFc = parkRef.current;
+      if (parkFc?.features?.[0] && !pip(lng, lat, parkFc.features[0].geometry)) {
+        const prev = draftMarkerRef.current?._vcpLastValid || {
+          latitude: draftProposal.latitude,
+          longitude: draftProposal.longitude,
+        };
+        marker.setLatLng([prev.latitude, prev.longitude]);
+        outsideRef.current?.();
+        return;
+      }
+      marker._vcpLastValid = { latitude: lat, longitude: lng };
+      proposeMoveRef.current?.({ latitude: lat, longitude: lng });
+    });
+    marker._vcpLastValid = {
+      latitude: draftProposal.latitude,
+      longitude: draftProposal.longitude,
+    };
+    marker.addTo(group);
+    draftMarkerRef.current = marker;
   }, [draftProposal]);
+
+  useEffect(() => {
+    const group = layersRef.current.existingDraft;
+    if (!group) return;
+
+    if (!draftExisting) {
+      group.clearLayers();
+      existingDraftRef.current = null;
+      return;
+    }
+
+    const existing = existingDraftRef.current;
+    if (existing && group.hasLayer(existing)) {
+      const current = existing.getLatLng();
+      if (
+        Math.abs(current.lat - draftExisting.latitude) > 1e-9 ||
+        Math.abs(current.lng - draftExisting.longitude) > 1e-9
+      ) {
+        existing.setLatLng([draftExisting.latitude, draftExisting.longitude]);
+      }
+      return;
+    }
+
+    group.clearLayers();
+    const marker = L.marker([draftExisting.latitude, draftExisting.longitude], {
+      icon: existingDraftIcon(),
+      zIndexOffset: 850,
+      title: "Draft existing bench location — drag to adjust",
+      draggable: true,
+      autoPan: true,
+    });
+    marker.on("dragend", () => {
+      const { lat, lng } = marker.getLatLng();
+      const parkFc = parkRef.current;
+      if (parkFc?.features?.[0] && !pip(lng, lat, parkFc.features[0].geometry)) {
+        const prev = existingDraftRef.current?._vcpLastValid || {
+          latitude: draftExisting.latitude,
+          longitude: draftExisting.longitude,
+        };
+        marker.setLatLng([prev.latitude, prev.longitude]);
+        outsideRef.current?.();
+        return;
+      }
+      marker._vcpLastValid = { latitude: lat, longitude: lng };
+      addExistingMoveRef.current?.({ latitude: lat, longitude: lng });
+    });
+    marker._vcpLastValid = {
+      latitude: draftExisting.latitude,
+      longitude: draftExisting.longitude,
+    };
+    marker.addTo(group);
+    existingDraftRef.current = marker;
+  }, [draftExisting]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -290,7 +465,9 @@ export default function MapCanvas({
 
 function pip(lon, lat, geometry) {
   const polys = geometry.type === "MultiPolygon" ? geometry.coordinates : [geometry.coordinates];
-  return polys.some((poly) => ringContains(lon, lat, poly[0]) && !poly.slice(1).some((hole) => ringContains(lon, lat, hole)));
+  return polys.some(
+    (poly) => ringContains(lon, lat, poly[0]) && !poly.slice(1).some((hole) => ringContains(lon, lat, hole))
+  );
 }
 
 function ringContains(lon, lat, ring) {

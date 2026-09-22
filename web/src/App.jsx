@@ -1,6 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "./api.js";
-import { durationCopy, prettyId } from "./format.js";
+import {
+  adoptionStatusLabel,
+  canRequestAdoption,
+  displayValue,
+  durationCopy,
+  googleMapsUrl,
+  infoSourceLabel,
+  prettyId,
+  verificationLabel,
+} from "./format.js";
 import MapCanvas from "./MapCanvas.jsx";
 
 const DURATIONS = [
@@ -8,6 +17,30 @@ const DURATIONS = [
   { months: 36, label: "3 years" },
   { months: 60, label: "5 years" },
 ];
+
+const EMPTY_ADOPT_FORM = {
+  requesterName: "",
+  contact: "",
+  durationMonths: 36,
+  message: "",
+};
+
+const EMPTY_PROPOSAL_FORM = {
+  reason: "",
+  proposerName: "",
+  contact: "",
+};
+
+const EMPTY_EXISTING_FORM = {
+  description: "",
+  adoptionStatus: "unknown",
+  adopterName: "",
+  adoptionDate: "",
+  durationMonths: "",
+  notes: "",
+  submitterName: "",
+  contact: "",
+};
 
 export default function App() {
   const [tab, setTab] = useState("explore");
@@ -20,25 +53,21 @@ export default function App() {
   const [selectedId, setSelectedId] = useState(null);
   const [proposeMode, setProposeMode] = useState(false);
   const [draftProposal, setDraftProposal] = useState(null);
-  const [overlayParkMap, setOverlayParkMap] = useState(false);
   const [loadError, setLoadError] = useState("");
   const [notice, setNotice] = useState("");
   const [adoptStep, setAdoptStep] = useState(1);
-  const [adoptForm, setAdoptForm] = useState({
-    adopterName: "",
-    contact: "",
-    durationMonths: 36,
-  });
+  const [adoptForm, setAdoptForm] = useState(EMPTY_ADOPT_FORM);
   const [adoptError, setAdoptError] = useState("");
   const [adoptBusy, setAdoptBusy] = useState(false);
   const [confirmation, setConfirmation] = useState(null);
-  const [proposalForm, setProposalForm] = useState({
-    reason: "",
-    proposerName: "",
-    contact: "",
-  });
+  const [proposalForm, setProposalForm] = useState(EMPTY_PROPOSAL_FORM);
   const [proposalError, setProposalError] = useState("");
   const [proposalBusy, setProposalBusy] = useState(false);
+  const [addExistingMode, setAddExistingMode] = useState(false);
+  const [draftExisting, setDraftExisting] = useState(null);
+  const [existingForm, setExistingForm] = useState(EMPTY_EXISTING_FORM);
+  const [existingError, setExistingError] = useState("");
+  const [existingBusy, setExistingBusy] = useState(false);
 
   const refresh = useCallback(async () => {
     const [benchPayload, proposalPayload] = await Promise.all([api.benches(), api.proposals()]);
@@ -70,32 +99,48 @@ export default function App() {
   }, [refresh]);
 
   const selected = benches.find((b) => b.bench_id === selectedId) || null;
-  const available = useMemo(() => benches.filter((b) => b.status === "available"), [benches]);
-  const adoptedCount = benches.filter((b) => b.status === "adopted").length;
+  const available = useMemo(() => benches.filter((b) => b.adoption_status === "available"), [benches]);
+  const adoptedCount = benches.filter((b) => b.adoption_status === "adopted").length;
   const mapBenches = useMemo(() => {
     if (tab === "adopt") {
-      return benches.filter((b) => b.status === "available" || b.bench_id === selectedId);
+      return benches.filter((b) => b.adoption_status === "available" || b.bench_id === selectedId);
     }
     return benches;
   }, [tab, benches, selectedId]);
 
+  function exitPlacementModes({ keepNotice = false } = {}) {
+    setProposeMode(false);
+    setAddExistingMode(false);
+    setDraftProposal(null);
+    setDraftExisting(null);
+    setProposalForm(EMPTY_PROPOSAL_FORM);
+    setExistingForm(EMPTY_EXISTING_FORM);
+    setProposalError("");
+    setExistingError("");
+    if (!keepNotice) setNotice("");
+  }
+
+  function exitProposalInteraction(opts) {
+    exitPlacementModes(opts);
+  }
+
   function goAdopt(benchId) {
+    exitProposalInteraction();
     setSelectedId(benchId);
     setTab("adopt");
     setAdoptStep(2);
     setAdoptError("");
     setConfirmation(null);
-    setProposeMode(false);
   }
-
-  const handleSelectBench = useCallback((id) => {
-    setSelectedId(id);
-  }, []);
 
   function onProposeClick({ latitude, longitude }) {
     setDraftProposal({ latitude, longitude });
     setProposalError("");
-    setNotice("Proposed marker placed. Complete the form to save this location.");
+    setNotice("Proposed marker placed. Drag it to adjust, then complete the form.");
+  }
+
+  function onProposeMove({ latitude, longitude }) {
+    setDraftProposal({ latitude, longitude });
   }
 
   async function submitProposal(event) {
@@ -111,9 +156,7 @@ export default function App() {
         proposerName: proposalForm.proposerName,
         contact: proposalForm.contact,
       });
-      setDraftProposal(null);
-      setProposeMode(false);
-      setProposalForm({ reason: "", proposerName: "", contact: "" });
+      exitProposalInteraction();
       setNotice("Proposal saved. It appears on the map as an amber diamond, distinct from existing benches.");
       await refresh();
     } catch (err) {
@@ -123,26 +166,26 @@ export default function App() {
     }
   }
 
-  async function submitAdoption(event) {
+  async function submitAdoptionRequest(event) {
     event.preventDefault();
-    if (!selected || selected.status !== "available") return;
+    if (!selected || !canRequestAdoption(selected)) return;
     setAdoptBusy(true);
     setAdoptError("");
     try {
-      const result = await api.adopt({
+      const result = await api.submitAdoptionRequest({
         benchId: selected.bench_id,
-        adopterName: adoptForm.adopterName,
+        requesterName: adoptForm.requesterName,
         contact: adoptForm.contact,
         durationMonths: Number(adoptForm.durationMonths),
+        message: adoptForm.message,
       });
-      setConfirmation(result.bench);
+      setConfirmation(result);
       setAdoptStep(5);
+      setAdoptForm(EMPTY_ADOPT_FORM);
       await refresh();
     } catch (err) {
       if (err.status === 409) {
-        setAdoptError(
-          "This bench was just adopted by someone else. Please return to Explore to choose another available bench."
-        );
+        setAdoptError(err.message);
         await refresh();
       } else {
         setAdoptError(err.message);
@@ -150,6 +193,51 @@ export default function App() {
     } finally {
       setAdoptBusy(false);
     }
+  }
+
+  async function submitExistingBench(event) {
+    event.preventDefault();
+    if (!draftExisting) return;
+    setExistingBusy(true);
+    setExistingError("");
+    try {
+      const result = await api.crowdsourceBench({
+        latitude: draftExisting.latitude,
+        longitude: draftExisting.longitude,
+        description: existingForm.description,
+        adoptionStatus: existingForm.adoptionStatus,
+        adopterName: existingForm.adopterName,
+        adoptionDate: existingForm.adoptionDate,
+        durationMonths: existingForm.durationMonths,
+        notes: existingForm.notes,
+        submitterName: existingForm.submitterName,
+        contact: existingForm.contact,
+      });
+      exitPlacementModes();
+      const dup = result.duplicateWarning ? ` ${result.duplicateWarning}` : "";
+      setNotice(
+        `Existing bench saved as crowdsourced information (pending verification).${dup} Select it on the map to review details.`
+      );
+      setSelectedId(result.bench.bench_id);
+      await refresh();
+    } catch (err) {
+      setExistingError(err.message);
+    } finally {
+      setExistingBusy(false);
+    }
+  }
+
+  function resetAdoptionForm() {
+    setAdoptForm(EMPTY_ADOPT_FORM);
+    setAdoptError("");
+    setConfirmation(null);
+  }
+
+  function cancelAdoption({ returnToExplore = false } = {}) {
+    resetAdoptionForm();
+    setAdoptStep(1);
+    setSelectedId(null);
+    if (returnToExplore) setTab("explore");
   }
 
   if (loadError) {
@@ -200,7 +288,10 @@ export default function App() {
           type="button"
           className={tab === "explore" ? "tab is-active" : "tab"}
           aria-current={tab === "explore" ? "page" : undefined}
-          onClick={() => setTab("explore")}
+          onClick={() => {
+            exitProposalInteraction();
+            setTab("explore");
+          }}
         >
           Explore
         </button>
@@ -209,10 +300,10 @@ export default function App() {
           className={tab === "adopt" ? "tab is-active" : "tab"}
           aria-current={tab === "adopt" ? "page" : undefined}
           onClick={() => {
+            exitProposalInteraction();
             setTab("adopt");
-            setProposeMode(false);
             setConfirmation(null);
-            setAdoptStep(selected?.status === "available" ? 2 : 1);
+            setAdoptStep(selected && canRequestAdoption(selected) ? 2 : 1);
           }}
         >
           Adopt
@@ -226,7 +317,26 @@ export default function App() {
         adopted benches are labeled demonstration records unless you just submitted one in this session.
       </p>
 
-      {notice ? (
+      {proposeMode ? (
+        <p className="notice propose-mode-banner" role="status">
+          Proposal mode is active — click inside the park boundary to place a marker. Use another Explore control to
+          cancel.
+          <button type="button" className="text-btn" onClick={() => exitPlacementModes()}>
+            Cancel proposal mode
+          </button>
+        </p>
+      ) : null}
+
+      {addExistingMode ? (
+        <p className="notice propose-mode-banner" role="status">
+          Add existing bench — click the physical bench location on the map inside the park boundary.
+          <button type="button" className="text-btn" onClick={() => exitPlacementModes()}>
+            Cancel
+          </button>
+        </p>
+      ) : null}
+
+      {notice && !proposeMode && !addExistingMode ? (
         <p className="notice" role="status">
           {notice}
           <button type="button" className="text-btn" onClick={() => setNotice("")}>
@@ -238,7 +348,7 @@ export default function App() {
       <div className="workspace">
         <section className="map-pane">
           {tab === "explore" ? (
-            <div className="map-toolbar">
+            <div className={`map-toolbar${proposeMode || addExistingMode ? " is-proposing" : ""}`}>
               <fieldset className="filters">
                 <legend className="sr-only">Filter benches</legend>
                 {[
@@ -252,42 +362,63 @@ export default function App() {
                       name="filter"
                       value={value}
                       checked={filter === value}
-                      onChange={() => setFilter(value)}
+                      onChange={() => {
+                        exitPlacementModes();
+                        setFilter(value);
+                      }}
                     />
-                    {label}
+                    <span>{label}</span>
                   </label>
                 ))}
               </fieldset>
-              <button
-                type="button"
-                className={proposeMode ? "propose-btn is-on" : "propose-btn"}
-                aria-pressed={proposeMode}
-                onClick={() => {
-                  setProposeMode((value) => !value);
-                  setDraftProposal(null);
-                  setSelectedId(null);
-                  setNotice(
-                    !proposeMode
-                      ? "Click inside the green park boundary to place a proposed bench. Clicks outside the park are rejected."
-                      : ""
-                  );
-                }}
-              >
-                Propose a Bench Location
-              </button>
-              <label className="overlay-toggle">
-                <input
-                  type="checkbox"
-                  checked={overlayParkMap}
-                  onChange={(e) => setOverlayParkMap(e.target.checked)}
-                />
-                Illustrated VCPA map overlay
-              </label>
+              <div className="toolbar-actions">
+                <button
+                  type="button"
+                  className={addExistingMode ? "propose-btn is-on" : "propose-btn"}
+                  aria-pressed={addExistingMode}
+                  onClick={() => {
+                    if (addExistingMode) {
+                      exitPlacementModes();
+                      return;
+                    }
+                    exitPlacementModes();
+                    setSelectedId(null);
+                    setDraftExisting(null);
+                    setExistingForm(EMPTY_EXISTING_FORM);
+                    setExistingError("");
+                    setAddExistingMode(true);
+                    setNotice("");
+                  }}
+                >
+                  {addExistingMode ? "Cancel" : "Add an Existing Bench"}
+                </button>
+                <button
+                  type="button"
+                  className={proposeMode ? "propose-btn is-on" : "propose-btn"}
+                  aria-pressed={proposeMode}
+                  onClick={() => {
+                    if (proposeMode) {
+                      exitPlacementModes();
+                      return;
+                    }
+                    exitPlacementModes();
+                    setSelectedId(null);
+                    setDraftProposal(null);
+                    setProposalForm(EMPTY_PROPOSAL_FORM);
+                    setProposalError("");
+                    setProposeMode(true);
+                    setNotice("");
+                  }}
+                >
+                  {proposeMode ? "Cancel" : "Propose a Bench Location"}
+                </button>
+              </div>
             </div>
           ) : (
             <div className="map-toolbar">
               <p className="toolbar-copy">
-                Available benches are shown in green. Select one here or from the list to begin an adoption.
+                Green markers are explicitly available for adoption requests. Gray markers are existing benches with
+                unknown adoption status.
               </p>
             </div>
           )}
@@ -295,17 +426,19 @@ export default function App() {
             park={park}
             trails={trails}
             benches={mapBenches}
-            proposals={tab === "explore" ? proposals : []}
+            proposals={tab === "all" ? proposals : []}
             filter={tab === "explore" ? filter : "all"}
             selectedId={selectedId}
             proposeMode={tab === "explore" && proposeMode}
+            addExistingMode={tab === "explore" && addExistingMode}
             draftProposal={tab === "explore" ? draftProposal : null}
-            overlayParkMap={overlayParkMap}
+            draftExisting={tab === "explore" ? draftExisting : null}
             onSelectBench={(id) => {
-              handleSelectBench(id);
+              if (tab === "explore") exitPlacementModes();
+              setSelectedId(id);
               if (tab === "adopt") {
                 const bench = benches.find((b) => b.bench_id === id);
-                if (bench?.status === "available") {
+                if (canRequestAdoption(bench)) {
                   setAdoptStep(2);
                   setConfirmation(null);
                   setAdoptError("");
@@ -313,8 +446,17 @@ export default function App() {
               }
             }}
             onProposeClick={onProposeClick}
+            onProposeMove={onProposeMove}
+            onAddExistingClick={({ latitude, longitude }) => {
+              setDraftExisting({ latitude, longitude });
+              setExistingError("");
+              setNotice("Bench marker placed. Drag it to adjust, then complete the form.");
+            }}
+            onAddExistingMove={({ latitude, longitude }) => {
+              setDraftExisting({ latitude, longitude });
+            }}
             onOutsidePark={() =>
-              setNotice("That click is outside Van Cortlandt Park. Place proposals inside the official X092 boundary.")
+              setNotice("That click is outside Van Cortlandt Park. Place markers inside the official X092 boundary.")
             }
           />
           <ul className="legend" aria-label="Map legend">
@@ -325,7 +467,19 @@ export default function App() {
               <span className="swatch red" /> Adopted bench
             </li>
             <li>
+              <span className="swatch gray" /> Unknown status
+            </li>
+            <li>
+              <span className="swatch yellow" /> Request pending
+            </li>
+            <li>
+              <span className="swatch blue dashed" /> Crowdsourced (unverified)
+            </li>
+            <li>
               <span className="swatch amber diamond" /> Proposed location
+            </li>
+            <li>
+              <span className="swatch teal circle" /> Draft existing bench
             </li>
             <li>
               <span className="swatch trail" /> Official park trails
@@ -343,17 +497,20 @@ export default function App() {
               proposalError={proposalError}
               proposalBusy={proposalBusy}
               proposeMode={proposeMode}
+              addExistingMode={addExistingMode}
+              draftExisting={draftExisting}
+              existingForm={existingForm}
+              setExistingForm={setExistingForm}
+              existingError={existingError}
+              existingBusy={existingBusy}
               onSubmitProposal={submitProposal}
+              onSubmitExisting={submitExistingBench}
               onAdopt={goAdopt}
-              onCancelDraft={() => {
-                setDraftProposal(null);
-                setProposeMode(false);
-              }}
+              onCancelDraft={() => exitPlacementModes()}
               meta={meta}
             />
           ) : (
             <AdoptPanel
-              benches={benches}
               available={available}
               selected={selected}
               step={adoptStep}
@@ -369,8 +526,9 @@ export default function App() {
                 setConfirmation(null);
                 setAdoptError("");
               }}
-              onSubmit={submitAdoption}
-              onBackToExplore={() => setTab("explore")}
+              onSubmit={submitAdoptionRequest}
+              onCancelAdoption={() => cancelAdoption()}
+              onCancelToExplore={() => cancelAdoption({ returnToExplore: true })}
             />
           )}
         </aside>
@@ -387,17 +545,117 @@ function ExplorePanel({
   proposalError,
   proposalBusy,
   proposeMode,
+  addExistingMode,
+  draftExisting,
+  existingForm,
+  setExistingForm,
+  existingError,
+  existingBusy,
   onSubmitProposal,
+  onSubmitExisting,
   onAdopt,
   onCancelDraft,
   meta,
 }) {
+  if (draftExisting) {
+    return (
+      <section>
+        <h2>Add an existing bench</h2>
+        <p className="hint">
+          Marker coordinates: {draftExisting.latitude.toFixed(6)}, {draftExisting.longitude.toFixed(6)}
+          <br />
+          Drag the teal marker on the map to adjust. This creates a crowdsourced record pending verification.
+        </p>
+        <form className="stack" onSubmit={onSubmitExisting}>
+          <label>
+            Identifying description
+            <textarea
+              rows={3}
+              value={existingForm.description}
+              onChange={(e) => setExistingForm({ ...existingForm, description: e.target.value })}
+              placeholder="e.g. wooden bench near the playground entrance"
+            />
+          </label>
+          <label>
+            Adoption status (if known)
+            <select
+              value={existingForm.adoptionStatus}
+              onChange={(e) => setExistingForm({ ...existingForm, adoptionStatus: e.target.value })}
+            >
+              <option value="unknown">Unknown / not established</option>
+              <option value="available">Available for adoption</option>
+              <option value="adopted">Adopted (name visible or known)</option>
+            </select>
+          </label>
+          <label>
+            Adoptee name <span className="optional">(if known)</span>
+            <input
+              value={existingForm.adopterName}
+              onChange={(e) => setExistingForm({ ...existingForm, adopterName: e.target.value })}
+            />
+          </label>
+          <label>
+            Adoption date <span className="optional">(if known)</span>
+            <input
+              type="date"
+              value={existingForm.adoptionDate}
+              onChange={(e) => setExistingForm({ ...existingForm, adoptionDate: e.target.value })}
+            />
+          </label>
+          <label>
+            Adoption duration (months) <span className="optional">(if known)</span>
+            <input
+              type="number"
+              min={1}
+              value={existingForm.durationMonths}
+              onChange={(e) => setExistingForm({ ...existingForm, durationMonths: e.target.value })}
+            />
+          </label>
+          <label>
+            Notes / source <span className="optional">(optional)</span>
+            <textarea
+              rows={2}
+              value={existingForm.notes}
+              onChange={(e) => setExistingForm({ ...existingForm, notes: e.target.value })}
+            />
+          </label>
+          <label>
+            Your name <span className="optional">(optional)</span>
+            <input
+              value={existingForm.submitterName}
+              onChange={(e) => setExistingForm({ ...existingForm, submitterName: e.target.value })}
+            />
+          </label>
+          <label>
+            Contact <span className="optional">(optional)</span>
+            <input
+              type="email"
+              value={existingForm.contact}
+              onChange={(e) => setExistingForm({ ...existingForm, contact: e.target.value })}
+            />
+          </label>
+          {existingError ? <p className="error">{existingError}</p> : null}
+          <div className="actions">
+            <button type="submit" className="primary" disabled={existingBusy}>
+              {existingBusy ? "Saving…" : "Save existing bench"}
+            </button>
+            <button type="button" className="ghost" onClick={onCancelDraft}>
+              Cancel
+            </button>
+          </div>
+        </form>
+      </section>
+    );
+  }
+
   if (draftProposal) {
     return (
       <section>
         <h2>Propose this location</h2>
         <p className="hint">
           Marker coordinates: {draftProposal.latitude.toFixed(6)}, {draftProposal.longitude.toFixed(6)}
+          <br />
+          Drag the amber marker on the map to adjust the location before saving.
         </p>
         <form className="stack" onSubmit={onSubmitProposal}>
           <label>
@@ -441,10 +699,19 @@ function ExplorePanel({
 
   if (selected) {
     const adoption = selected.adoption;
+    const statusClass =
+      selected.adoption_status === "adopted"
+        ? "adopted"
+        : selected.adoption_status === "available"
+          ? "available"
+          : "unknown";
     return (
       <section>
-        <p className={`status-pill ${selected.status}`}>{selected.status === "adopted" ? "Adopted" : "Available"}</p>
+        <p className={`status-pill ${statusClass}`}>{adoptionStatusLabel(selected.adoption_status)}</p>
         <h2>{selected.gis_name || prettyId(selected.bench_id)}</h2>
+        {selected.is_crowdsourced ? (
+          <p className="sample-flag">Crowdsourced record — pending verification; not authoritative.</p>
+        ) : null}
         <dl className="facts">
           <div>
             <dt>Bench ID</dt>
@@ -457,8 +724,20 @@ function ExplorePanel({
             </dd>
           </div>
           <div>
-            <dt>GIS source</dt>
-            <dd>{selected.gis_source}</dd>
+            <dt>Information source</dt>
+            <dd>{infoSourceLabel(selected.info_source)}</dd>
+          </div>
+          <div>
+            <dt>Verification</dt>
+            <dd>{verificationLabel(selected.verification_status)}</dd>
+          </div>
+          <div>
+            <dt>Description</dt>
+            <dd>{displayValue(selected.description)}</dd>
+          </div>
+          <div>
+            <dt>GIS reference</dt>
+            <dd>{displayValue(selected.gis_source)}</dd>
           </div>
           {selected.bench_type ? (
             <div>
@@ -485,15 +764,49 @@ function ExplorePanel({
                 <dd>{adoption.time_remaining}</dd>
               </div>
             </>
+          ) : (
+            <>
+              <div>
+                <dt>Reported adoptee</dt>
+                <dd>{displayValue(selected.reported_adopter_name, "Unknown")}</dd>
+              </div>
+              <div>
+                <dt>Reported adoption date</dt>
+                <dd>{displayValue(selected.reported_adoption_date)}</dd>
+              </div>
+            </>
+          )}
+          {selected.pending_adoption_request ? (
+            <div>
+              <dt>Adoption request</dt>
+              <dd>
+                Pending ({selected.pending_adoption_request.status}) since{" "}
+                {String(selected.pending_adoption_request.submitted_at).slice(0, 10)}
+              </dd>
+            </div>
+          ) : null}
+          {selected.near_duplicate_bench_ids?.length ? (
+            <div>
+              <dt>Possible duplicates</dt>
+              <dd>{selected.near_duplicate_bench_ids.join(", ")} — flagged for review</dd>
+            </div>
           ) : null}
         </dl>
         {adoption?.is_sample ? (
           <p className="sample-flag">Demonstration adoption record — replaceable with official program data.</p>
         ) : null}
-        {selected.status === "available" ? (
+        <p>
+          <a href={selected.google_maps_url || googleMapsUrl(selected.latitude, selected.longitude)} target="_blank" rel="noopener noreferrer">
+            View in Google Maps
+          </a>
+        </p>
+        {canRequestAdoption(selected) ? (
           <button type="button" className="primary" onClick={() => onAdopt(selected.bench_id)}>
-            Adopt this bench
+            Request adoption
           </button>
+        ) : null}
+        {selected.adoption_status === "request_submitted" ? (
+          <p className="hint">An adoption request is already pending review by Van Cortlandt Park.</p>
         ) : null}
       </section>
     );
@@ -503,15 +816,17 @@ function ExplorePanel({
     <section>
       <h2>Explore the park</h2>
       <p>
-        Zoom and pan the map, then click a marker. Green benches can be adopted. Red benches already have an adoptee
-        in the demonstration registry.
+        Click a bench marker to view its record. Only benches explicitly marked available can receive adoption requests.
+        Unknown status does not mean available.
       </p>
       {proposeMode ? (
-        <p className="hint">Proposal mode is on. Click a point inside the park boundary.</p>
+        <p className="hint propose-hint">Proposal mode is on. Click a point inside the park boundary.</p>
+      ) : addExistingMode ? (
+        <p className="hint propose-hint">Add existing bench mode is on. Click the bench location on the map.</p>
       ) : (
         <p className="hint">
-          Use <strong>Propose a Bench Location</strong> to drop a new marker — not an existing bench — directly on the
-          map.
+          Use <strong>Add an Existing Bench</strong> for a physical bench missing from the map, or{" "}
+          <strong>Propose a Bench Location</strong> for a suggested new bench site.
         </p>
       )}
       {meta ? (
@@ -543,37 +858,51 @@ function AdoptPanel({
   confirmation,
   onSelect,
   onSubmit,
-  onBackToExplore,
+  onCancelAdoption,
+  onCancelToExplore,
 }) {
   if (confirmation) {
+    const bench = confirmation.bench;
+    const request = confirmation.request;
     return (
       <section className="confirm">
-        <p className="status-pill adopted">Adoption recorded</p>
-        <h2>Thank you, {confirmation.adoption.adopter_name}</h2>
+        <p className="status-pill available">Request submitted</p>
+        <h2>Thank you, {request.requester_name}</h2>
         <p>
-          Bench <strong>{confirmation.bench_id}</strong> is now adopted through{" "}
-          <strong>{confirmation.adoption.expiration_date}</strong>. It appears in red on Explore immediately.
+          Your adoption request for bench <strong>{bench.bench_id}</strong> has been saved. Van Cortlandt Park will
+          review the request and follow up with you directly. This is not an official adoption until the park confirms
+          it.
         </p>
         <dl className="facts">
           <div>
-            <dt>Duration</dt>
-            <dd>{durationCopy(confirmation.adoption.duration_months)}</dd>
+            <dt>Requested duration</dt>
+            <dd>{durationCopy(request.duration_months)}</dd>
           </div>
           <div>
-            <dt>Time remaining</dt>
-            <dd>{confirmation.adoption.time_remaining}</dd>
+            <dt>Request status</dt>
+            <dd>{request.status}</dd>
+          </div>
+          <div>
+            <dt>Submitted</dt>
+            <dd>{String(request.submitted_at).slice(0, 10)}</dd>
           </div>
         </dl>
-        <button type="button" className="primary" onClick={onBackToExplore}>
+        <button type="button" className="primary" onClick={onCancelToExplore}>
           Return to Explore
         </button>
       </section>
     );
   }
 
+  const eligible = selected && canRequestAdoption(selected);
+
   return (
     <section>
-      <ol className="steps" aria-label="Adoption steps">
+      <p className="hint">
+        Submitting a request is not the same as adopting a bench. Van Cortlandt Park handles confirmation and further
+        communication.
+      </p>
+      <ol className="steps" aria-label="Adoption request steps">
         {["Choose", "Review", "Your details", "Confirm"].map((label, index) => (
           <li key={label} className={step === index + 1 ? "is-current" : step > index + 1 ? "is-done" : ""}>
             {label}
@@ -585,7 +914,7 @@ function AdoptPanel({
         <>
           <h2>Select an available bench</h2>
           {available.length === 0 ? (
-            <p>Every mapped bench is currently adopted. Propose a new location from Explore.</p>
+            <p>No benches are currently marked available for adoption requests.</p>
           ) : (
             <ul className="bench-list">
               {available.map((bench) => (
@@ -600,6 +929,11 @@ function AdoptPanel({
               ))}
             </ul>
           )}
+          <div className="actions" style={{ marginTop: "1rem" }}>
+            <button type="button" className="ghost" onClick={onCancelToExplore}>
+              Cancel
+            </button>
+          </div>
         </>
       ) : null}
 
@@ -607,27 +941,29 @@ function AdoptPanel({
         <div className="review-block">
           <h2>{step === 2 ? "Review this bench" : prettyId(selected.bench_id)}</h2>
           <p>
-            {selected.latitude.toFixed(6)}, {selected.longitude.toFixed(6)} · {selected.status}
+            {selected.latitude.toFixed(6)}, {selected.longitude.toFixed(6)} ·{" "}
+            {adoptionStatusLabel(selected.adoption_status)}
           </p>
-          {selected.status !== "available" ? (
-            <p className="error">
-              This bench was just adopted by someone else. Please return to Explore to choose another available bench.
-            </p>
-          ) : null}
-          {step === 2 && selected.status === "available" ? (
+          <p>
+            <a href={selected.google_maps_url || googleMapsUrl(selected.latitude, selected.longitude)} target="_blank" rel="noopener noreferrer">
+              View in Google Maps
+            </a>
+          </p>
+          {!eligible ? <p className="error">This bench is no longer available for an adoption request.</p> : null}
+          {step === 2 && eligible ? (
             <div className="actions">
               <button type="button" className="primary" onClick={() => setStep(3)}>
                 Continue
               </button>
-              <button type="button" className="ghost" onClick={() => setStep(1)}>
-                Choose a different bench
+              <button type="button" className="ghost" onClick={onCancelAdoption}>
+                Cancel
               </button>
             </div>
           ) : null}
         </div>
       ) : null}
 
-      {step === 3 && selected?.status === "available" ? (
+      {step === 3 && eligible ? (
         <form
           className="stack"
           onSubmit={(e) => {
@@ -636,62 +972,78 @@ function AdoptPanel({
           }}
         >
           <label>
-            Adopter name
+            Your name
             <input
               required
               minLength={2}
-              value={form.adopterName}
-              onChange={(e) => setForm({ ...form, adopterName: e.target.value })}
+              value={form.requesterName}
+              onChange={(e) => setForm({ ...form, requesterName: e.target.value })}
             />
           </label>
           <label>
-            Contact information
+            Email / contact information
             <input
               required
               value={form.contact}
               onChange={(e) => setForm({ ...form, contact: e.target.value })}
             />
           </label>
-          <fieldset>
-            <legend>Adoption duration</legend>
-            {DURATIONS.map((item) => (
-              <label key={item.months} className="choice">
-                <input
-                  type="radio"
-                  name="duration"
-                  value={item.months}
-                  checked={Number(form.durationMonths) === item.months}
-                  onChange={() => setForm({ ...form, durationMonths: item.months })}
-                />
-                {item.label}
-              </label>
-            ))}
+          <fieldset className="duration-fieldset">
+            <legend>Desired adoption duration</legend>
+            <div className="choice-list">
+              {DURATIONS.map((item) => (
+                <label key={item.months} className="choice">
+                  <input
+                    type="radio"
+                    name="duration"
+                    value={item.months}
+                    checked={Number(form.durationMonths) === item.months}
+                    onChange={() => setForm({ ...form, durationMonths: item.months })}
+                  />
+                  <span>{item.label}</span>
+                </label>
+              ))}
+            </div>
           </fieldset>
-          <button type="submit" className="primary">
-            Review adoption
-          </button>
+          <label>
+            Message to Van Cortlandt Park <span className="optional">(optional)</span>
+            <textarea
+              rows={3}
+              value={form.message}
+              onChange={(e) => setForm({ ...form, message: e.target.value })}
+            />
+          </label>
+          <div className="actions">
+            <button type="submit" className="primary">
+              Review request
+            </button>
+            <button type="button" className="ghost" onClick={onCancelAdoption}>
+              Cancel
+            </button>
+          </div>
         </form>
       ) : null}
 
-      {step === 4 && selected?.status === "available" ? (
+      {step === 4 && eligible ? (
         <form className="stack" onSubmit={onSubmit}>
-          <h2>Confirm adoption</h2>
+          <h2>Confirm adoption request</h2>
           <ul className="summary">
             <li>Bench {selected.bench_id}</li>
             <li>
               {selected.latitude.toFixed(6)}, {selected.longitude.toFixed(6)}
             </li>
-            <li>{form.adopterName}</li>
+            <li>{form.requesterName}</li>
             <li>{form.contact}</li>
-            <li>{durationCopy(Number(form.durationMonths))} · no payment collected</li>
+            <li>{durationCopy(Number(form.durationMonths))}</li>
+            {form.message ? <li>{form.message}</li> : null}
           </ul>
           {error ? <p className="error">{error}</p> : null}
           <div className="actions">
             <button type="submit" className="primary" disabled={busy}>
-              {busy ? "Submitting…" : "Submit adoption"}
+              {busy ? "Submitting…" : "Submit adoption request"}
             </button>
-            <button type="button" className="ghost" onClick={() => setStep(3)}>
-              Back
+            <button type="button" className="ghost" onClick={onCancelAdoption}>
+              Cancel
             </button>
           </div>
         </form>

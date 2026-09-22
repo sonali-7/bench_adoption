@@ -72,31 +72,98 @@ app.post("/api/proposals", (req, res) => {
   res.status(201).json({ proposal });
 });
 
-app.post("/api/adoptions", (req, res) => {
-  const { benchId, adopterName, contact, durationMonths } = req.body || {};
+app.post("/api/benches/crowdsource", (req, res) => {
+  const {
+    latitude,
+    longitude,
+    description,
+    adoptionStatus,
+    adopterName,
+    adoptionDate,
+    durationMonths,
+    notes,
+    submitterName,
+    contact,
+  } = req.body || {};
+  const lat = Number(latitude);
+  const lon = Number(longitude);
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+    return res.status(400).json({ error: "A valid map location is required." });
+  }
+  if (!isInsidePark(lon, lat)) {
+    return res.status(400).json({
+      error: "Bench locations must fall inside the official Van Cortlandt Park boundary (Park ID X092).",
+    });
+  }
+  try {
+    const { bench, nearDuplicateBenchIds } = dbApi.createCrowdsourcedBench(db, {
+      latitude: lat,
+      longitude: lon,
+      description: description ? String(description).trim() : "",
+      adoptionStatus,
+      adopterName,
+      adoptionDate,
+      durationMonths,
+      notes: [
+        notes ? String(notes).trim() : "",
+        submitterName ? `Submitter: ${String(submitterName).trim()}` : "",
+        contact ? `Contact: ${String(contact).trim()}` : "",
+      ]
+        .filter(Boolean)
+        .join("\n"),
+    });
+    res.status(201).json({
+      bench,
+      nearDuplicateBenchIds,
+      duplicateWarning:
+        nearDuplicateBenchIds.length > 0
+          ? "Another bench record exists very close to this location. It was saved for review and was not merged automatically."
+          : null,
+    });
+  } catch (err) {
+    if (err.code === "INVALID_LOCATION") {
+      return res.status(400).json({ error: "A valid map location is required." });
+    }
+    throw err;
+  }
+});
+
+app.post("/api/adoption-requests", (req, res) => {
+  const { benchId, requesterName, contact, durationMonths, message } = req.body || {};
   const months = Number(durationMonths);
   if (!benchId) return res.status(400).json({ error: "Please choose a bench." });
-  if (!adopterName || String(adopterName).trim().length < 2) {
-    return res.status(400).json({ error: "Please enter the adopter name." });
+  if (!requesterName || String(requesterName).trim().length < 2) {
+    return res.status(400).json({ error: "Please enter your name." });
+  }
+  if (!contact || String(contact).trim().length < 3) {
+    return res.status(400).json({ error: "Please enter contact information." });
   }
   if (![12, 36, 60].includes(months)) {
     return res.status(400).json({ error: "Please choose a 1-, 3-, or 5-year adoption." });
   }
-  const bench = dbApi.getBench(db, benchId);
-  if (!bench) return res.status(404).json({ error: "Bench not found." });
   try {
-    const adopted = dbApi.adoptBench(db, {
+    const result = dbApi.submitAdoptionRequest(db, {
       benchId,
-      adopterName: String(adopterName).trim(),
-      contact: contact ? String(contact).trim() : "",
+      requesterName: String(requesterName).trim(),
+      contact: String(contact).trim(),
       durationMonths: months,
+      message: message ? String(message).trim() : "",
     });
-    res.status(201).json({ bench: adopted });
+    res.status(201).json(result);
   } catch (err) {
-    if (err.code === "BENCH_UNAVAILABLE") {
+    if (err.code === "NOT_FOUND") {
+      return res.status(404).json({ error: "Bench not found." });
+    }
+    if (err.code === "BENCH_NOT_AVAILABLE") {
+      return res.status(409).json({
+        error: "This bench is not available for an adoption request.",
+        bench: err.bench,
+      });
+    }
+    if (err.code === "REQUEST_ALREADY_PENDING") {
       return res.status(409).json({
         error:
-          "This bench was just adopted by someone else. Please return to Explore to choose another available bench.",
+          "An adoption request for this bench is already pending review. Van Cortlandt Park will follow up on the existing request.",
         bench: err.bench,
       });
     }
