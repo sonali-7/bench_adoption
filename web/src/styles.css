@@ -217,11 +217,12 @@ textarea {
 
 .map-toolbar {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.6rem;
+  flex-wrap: nowrap;
+  gap: 0.35rem;
   align-items: center;
-  padding: 0.75rem;
+  padding: 0.65rem 0.75rem;
   border-bottom: 1px solid var(--line);
+  min-width: 0;
 }
 
 .map-toolbar.is-proposing {
@@ -234,34 +235,45 @@ textarea {
   margin: 0;
   padding: 0;
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem;
+  flex-wrap: nowrap;
+  gap: 0.2rem;
   align-items: center;
+  flex: 0 0 auto;
+  min-width: 0;
 }
 
 .toolbar-actions {
   margin-left: auto;
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.45rem;
+  flex-wrap: nowrap;
+  gap: 0.2rem;
   align-items: center;
+  justify-content: flex-end;
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .propose-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+  display: block;
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 100%;
   min-height: 2.25rem;
   height: 2.25rem;
+  margin: 0;
   background: var(--propose);
   color: white;
   border: 0;
   border-radius: 0px;
-  padding: 0 0.95rem;
+  padding: 0 clamp(0.35rem, 1.2vw, 0.95rem);
   cursor: pointer;
   font-weight: 600;
-  line-height: 1.2;
+  font-size: clamp(0.7rem, 1.5vw, 0.92rem);
+  line-height: 2.25rem;
+  text-align: center;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .propose-btn.is-on {
@@ -272,12 +284,15 @@ textarea {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  flex: 0 0 auto;
   min-height: 2.25rem;
   height: 2.25rem;
+  margin: 0;
   border: 1px solid var(--line);
   border-radius: 0px;
-  padding: 0 0.85rem;
+  padding: 0 clamp(0.35rem, 1.2vw, 0.85rem);
   cursor: pointer;
+  font-size: clamp(0.7rem, 1.5vw, 0.92rem);
   line-height: 1.2;
   white-space: nowrap;
 }
@@ -347,7 +362,7 @@ textarea {
   display: inline-block;
   width: 0.85rem;
   height: 0.85rem;
-  border-radius: 999px;
+  border-radius: 10px;
   margin-right: 0.35rem;
   vertical-align: -1px;
 }
@@ -462,7 +477,7 @@ textarea {
 
 .primary,
 .ghost {
-  border-radius: 999px;
+  border-radius: 0px;
   padding: 0.6rem 1rem;
   cursor: pointer;
 }
@@ -507,7 +522,7 @@ textarea {
 
 .status-pill {
   display: inline-block;
-  border-radius: 999px;
+  border-radius: 10px;
   padding: 0.15rem 0.55rem;
   font-size: 0.8rem;
   font-weight: 600;
@@ -636,7 +651,7 @@ textarea {
 .popup-card {
   display: flex;
   flex-direction: column;
-  max-height: min(35vh, 200px);
+  max-height: min(35vh, 125px);
   width: min(72vw, 280px);
   margin: 0;
 }
@@ -723,7 +738,7 @@ textarea {
   height: 18px;
   margin: 3px;
   background: #0ca678;
-  border-radius: 999px;
+  border-radius: 10px;
   border: 2px solid white;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
 }
@@ -771,10 +786,6 @@ textarea {
   .masthead-photo img {
     max-height: 200px;
   }
-
-  .propose-btn {
-    margin-left: 0;
-  }
 }
 
 .leaflet-container {
@@ -788,9 +799,9 @@ textarea {
 
 .leaflet-popup-content {
   margin: 0.75rem 0.85rem;
-  max-height: min(35vh, 200px);
+  max-height: min(35vh, 125px);
 }
 
 .leaflet-popup-content .popup-card {
-  max-height: min(35vh, 200px);
+  max-height: min(35vh, 125px);
 }
