@@ -773,10 +773,10 @@ function ExplorePanel({
           <p className="sample-flag">Crowdsourced record — pending verification; not authoritative.</p>
         ) : null}
         <dl className="facts">
-          <div>
+          {/* <div>
             <dt>Bench ID</dt>
             <dd>{selected.bench_id}</dd>
-          </div>
+          </div> */}
           <div>
             <dt>Coordinates</dt>
             <dd>
@@ -784,27 +784,19 @@ function ExplorePanel({
             </dd>
           </div>
           <div>
-            <dt>Information source</dt>
-            <dd>{infoSourceLabel(selected.info_source)}</dd>
-          </div>
-          <div>
             <dt>Verification</dt>
             <dd>{verificationLabel(selected.verification_status)}</dd>
           </div>
-          <div>
-            <dt>Description</dt>
-            <dd>{displayValue(selected.description)}</dd>
-          </div>
-          <div>
-            <dt>GIS reference</dt>
-            <dd>{displayValue(selected.gis_source)}</dd>
-          </div>
-          {selected.bench_type ? (
+          {selected.description ? (
             <div>
-              <dt>Bench type</dt>
-              <dd>{selected.bench_type}</dd>
+              <dt>Description</dt>
+              <dd>{selected.description}</dd>
             </div>
           ) : null}
+          {/* <div>
+            <dt>GIS reference</dt>
+            <dd>{displayValue(selected.gis_source)}</dd>
+          </div> */}
           {adoption ? (
             <>
               <div>
@@ -818,10 +810,6 @@ function ExplorePanel({
               <div>
                 <dt>Duration</dt>
                 <dd>{durationCopy(adoption.duration_months)}</dd>
-              </div>
-              <div>
-                <dt>Time remaining</dt>
-                <dd>{adoption.time_remaining}</dd>
               </div>
             </>
           ) : (
@@ -845,12 +833,16 @@ function ExplorePanel({
               </dd>
             </div>
           ) : null}
-          {selected.near_duplicate_bench_ids?.length ? (
+          {/* {selected.near_duplicate_bench_ids?.length ? (
             <div>
               <dt>Possible duplicates</dt>
               <dd>{selected.near_duplicate_bench_ids.join(", ")} — flagged for review</dd>
             </div>
-          ) : null}
+          ) : null} */}
+          <div>
+            <dt>Information source</dt>
+            <dd>{infoSourceLabel(selected.info_source)}</dd>
+          </div>
         </dl>
         {adoption?.is_sample ? (
           <p className="sample-flag">Demonstration adoption record — replaceable with official program data.</p>

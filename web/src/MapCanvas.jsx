@@ -113,13 +113,11 @@ function popupHtml(bench) {
       <div class="popup-card-body">
         <h3>${escapeHtml(bench.gis_name || prettyId(bench.bench_id))}</h3>
         <dl>
-          <dt>Bench ID</dt><dd>${escapeHtml(bench.bench_id)}</dd>
           <dt>Coordinates</dt><dd>${bench.latitude.toFixed(6)}, ${bench.longitude.toFixed(6)}</dd>
           <dt>Adoption status</dt><dd>${escapeHtml(adoptionStatusLabel(bench.adoption_status))}</dd>
           ${adopteeBlock}
-          <dt>Information source</dt><dd>${escapeHtml(infoSourceLabel(bench.info_source))}</dd>
           <dt>Verification</dt><dd>${escapeHtml(verificationLabel(bench.verification_status))}</dd>
-          <dt>GIS reference</dt><dd>${escapeHtml(displayValue(bench.gis_source))}</dd>
+          <dt>Information source</dt><dd>${escapeHtml(infoSourceLabel(bench.info_source))}</dd>
           ${extra.join("")}
         </dl>
         ${sample}
