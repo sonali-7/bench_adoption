@@ -291,60 +291,52 @@ export default function App() {
             A map-first inventory of park benches: official park geography, public bench coordinates, and a
             demonstration adoption registry.
           </p>
+          <nav className="tabs" aria-label="Primary">
+            <button
+              type="button"
+              className={tab === "explore" ? "tab is-active" : "tab"}
+              aria-current={tab === "explore" ? "page" : undefined}
+              onClick={() => {
+                exitProposalInteraction();
+                setTab("explore");
+              }}
+            >
+              Explore
+            </button>
+            <button
+              type="button"
+              className={tab === "adopt" ? "tab is-active" : "tab"}
+              aria-current={tab === "adopt" ? "page" : undefined}
+              onClick={() => {
+                exitProposalInteraction();
+                setTab("adopt");
+                setConfirmation(null);
+                setAdoptStep(selected && canRequestAdoption(selected) ? 2 : 1);
+              }}
+            >
+              Adopt
+            </button>
+          </nav>
         </div>
-        <dl className="stats" aria-label="Inventory summary">
-          <div>
-            <dt>Mapped benches</dt>
-            <dd>{benches.length}</dd>
-          </div>
-          <div>
-            <dt>Available</dt>
-            <dd>{available.length}</dd>
-          </div>
-          <div>
-            <dt>Adopted</dt>
-            <dd>{adoptedCount}</dd>
-          </div>
-          <div>
-            <dt>Proposals</dt>
-            <dd>{proposals.length}</dd>
-          </div>
-        </dl>
+        <figure className="masthead-photo">
+          <img
+            src="/van-cortlandt-entrance.jpg"
+            alt="Stone and iron entrance gates to Van Cortlandt Park"
+            width={960}
+            height={718}
+          />
+          <figcaption>
+            Entrance to Van Cortlandt Park ·{" "}
+            <a
+              href="https://commons.wikimedia.org/wiki/File:Entrance_To_Van_Cortlandt_Park_2012.jpg"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Wikimedia Commons
+            </a>
+          </figcaption>
+        </figure>
       </header>
-
-      <nav className="tabs" aria-label="Primary">
-        <button
-          type="button"
-          className={tab === "explore" ? "tab is-active" : "tab"}
-          aria-current={tab === "explore" ? "page" : undefined}
-          onClick={() => {
-            exitProposalInteraction();
-            setTab("explore");
-          }}
-        >
-          Explore
-        </button>
-        <button
-          type="button"
-          className={tab === "adopt" ? "tab is-active" : "tab"}
-          aria-current={tab === "adopt" ? "page" : undefined}
-          onClick={() => {
-            exitProposalInteraction();
-            setTab("adopt");
-            setConfirmation(null);
-            setAdoptStep(selected && canRequestAdoption(selected) ? 2 : 1);
-          }}
-        >
-          Adopt
-        </button>
-      </nav>
-
-      <p className="data-banner" role="note">
-        <strong>GIS is authoritative; adoptions are not.</strong> Park boundary and trails come from NYC Open Data
-        (Parks Properties and Parks Trails, Park ID X092). Bench points are OpenStreetMap <code>amenity=bench</code>{" "}
-        features clipped to that boundary — NYC Parks does not publish a public bench GIS layer. Names and dates on
-        adopted benches are labeled demonstration records unless you just submitted one in this session.
-      </p>
 
       {proposeMode ? (
         <p className="notice propose-mode-banner" role="status">
@@ -1116,4 +1108,10 @@ function AdoptPanel({
       {error && step !== 4 ? <p className="error">{error}</p> : null}
     </section>
   );
+  {/* <p className="data-banner" role="note">
+        <strong>GIS is authoritative; adoptions are not.</strong> Park boundary and trails come from NYC Open Data
+        (Parks Properties and Parks Trails, Park ID X092). Bench points are OpenStreetMap <code>amenity=bench</code>{" "}
+        features clipped to that boundary — NYC Parks does not publish a public bench GIS layer. Names and dates on
+        adopted benches are labeled demonstration records unless you just submitted one in this session.
+      </p> */}
 }

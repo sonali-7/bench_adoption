@@ -18,9 +18,9 @@ const CROWD = "#1971c2";
 const PROPOSED = "#e67700";
 
 function benchPinColor(bench) {
-  if (bench.info_source === "crowdsourced" && bench.verification_status !== "verified") {
-    return CROWD;
-  }
+  // if (bench.info_source === "crowdsourced" && bench.verification_status !== "verified") {
+  // return CROWD;
+  // }
   switch (bench.adoption_status) {
     case "adopted":
       return ADOPTED;
@@ -29,6 +29,9 @@ function benchPinColor(bench) {
     case "request_submitted":
       return REQUEST;
     default:
+      if (bench.info_source === "crowdsourced" && bench.verification_status !== "verified") {
+        return CROWD;
+      }
       return UNKNOWN;
   }
 }

@@ -71,9 +71,41 @@ textarea {
 .masthead {
   display: grid;
   gap: 1rem;
-  grid-template-columns: 1.5fr 1fr;
-  align-items: end;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+  align-items: stretch;
   margin-bottom: 1rem;
+}
+
+.masthead-photo {
+  margin: 0;
+  justify-self: end;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.masthead-photo img {
+  display: block;
+  width: 100%;
+  height: 150px;
+  max-height: 168px;
+  object-fit: cover;
+  object-position: center 20%;
+  border-radius: 0rem;
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow);
+}
+
+.masthead-photo figcaption {
+  margin-top: 0.4rem;
+  font-size: 0.72rem;
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+.masthead-photo figcaption a {
+  color: inherit;
 }
 
 .eyebrow {
@@ -119,14 +151,15 @@ textarea {
 .tabs {
   display: flex;
   gap: 0.4rem;
-  margin-bottom: 0.85rem;
+  margin-top: 1rem;
+  margin-bottom: 0rem;
 }
 
 .tab {
   border: 0;
   background: transparent;
   padding: 0.55rem 1rem;
-  border-radius: 999px;
+  border-radius: 0px;
   cursor: pointer;
   color: var(--muted);
 }
@@ -140,7 +173,7 @@ textarea {
 .notice {
   background: #fff7ed;
   border: 1px solid #fdba74;
-  border-radius: 0.8rem;
+  border-radius: 0.5rem;
   padding: 0.75rem 0.9rem;
   margin: 0 0 0.9rem;
   color: #7c2d12;
@@ -160,21 +193,25 @@ textarea {
   display: grid;
   grid-template-columns: minmax(0, 1.7fr) minmax(280px, 0.9fr);
   gap: 1rem;
-  min-height: 70vh;
+  /* Viewport-tied height so map size is stable; sidebar scrolls inside */
+  height: clamp(520px, calc(100vh - 16rem), 820px);
+  min-height: 0;
+  align-items: stretch;
 }
 
 .map-pane,
 .side-pane {
   background: var(--card);
   border: 1px solid var(--line);
-  border-radius: 1.1rem;
+  border-radius: 0.5rem;
   box-shadow: var(--shadow);
+  min-height: 0;
+  height: 100%;
 }
 
 .map-pane {
   display: flex;
   flex-direction: column;
-  min-height: 640px;
   overflow: hidden;
 }
 
@@ -219,7 +256,7 @@ textarea {
   background: var(--propose);
   color: white;
   border: 0;
-  border-radius: 999px;
+  border-radius: 0px;
   padding: 0 0.95rem;
   cursor: pointer;
   font-weight: 600;
@@ -238,7 +275,7 @@ textarea {
   min-height: 2.25rem;
   height: 2.25rem;
   border: 1px solid var(--line);
-  border-radius: 999px;
+  border-radius: 0px;
   padding: 0 0.85rem;
   cursor: pointer;
   line-height: 1.2;
@@ -286,7 +323,7 @@ textarea {
 
 .map-canvas {
   flex: 1;
-  min-height: 520px;
+  min-height: 0;
 }
 
 .map-canvas.is-proposing {
@@ -364,6 +401,9 @@ textarea {
 
 .side-pane {
   padding: 1.1rem 1.15rem 1.3rem;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .stack {
@@ -519,6 +559,7 @@ textarea {
 .sample-flag,
 .hint,
 .optional {
+  margin-top: -0.4rem;
   color: var(--muted);
   font-size: 0.92rem;
 }
@@ -709,8 +750,26 @@ textarea {
     grid-template-columns: 1fr;
   }
 
+  .workspace {
+    height: auto;
+  }
+
   .map-pane {
-    min-height: 520px;
+    height: clamp(420px, 55vh, 640px);
+  }
+
+  .side-pane {
+    height: auto;
+    max-height: min(50vh, 420px);
+  }
+
+  .masthead-photo {
+    justify-self: stretch;
+    max-width: none;
+  }
+
+  .masthead-photo img {
+    max-height: 200px;
   }
 
   .propose-btn {

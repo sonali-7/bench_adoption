@@ -6,8 +6,6 @@
   "bench_source": "OpenStreetMap amenity=bench nodes/ways, clipped to the official X092 park polygon",
   "nyc_parks_bench_layer": null,
   "notes": [
-    "NYC Parks AMPS Assets (e25p-jzfy) does not include a public bench/furniture class for X092.",
-    "NYC DOT City Bench / Seating Locations are street furniture and do not fall inside the X092 polygon.",
     "Adoption records in this application are demonstration data, not official NYC Parks donation records."
   ],
   "bench_count": 11,

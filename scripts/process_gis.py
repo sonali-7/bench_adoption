@@ -167,11 +167,11 @@ def main() -> None:
         "trails_source": "NYC Open Data Parks Trails dataset vjbm-hsyr, filtered to parkid=X092",
         "bench_source": "OpenStreetMap amenity=bench nodes/ways, clipped to the official X092 park polygon",
         "nyc_parks_bench_layer": None,
-        "notes": [
-            "NYC Parks AMPS Assets (e25p-jzfy) does not include a public bench/furniture class for X092.",
-            "NYC DOT City Bench / Seating Locations are street furniture and do not fall inside the X092 polygon.",
-            "Adoption records in this application are demonstration data, not official NYC Parks donation records.",
-        ],
+        # "notes": [
+        #     "NYC Parks AMPS Assets (e25p-jzfy) does not include a public bench/furniture class for X092.",
+        #     "NYC DOT City Bench / Seating Locations are street furniture and do not fall inside the X092 polygon.",
+        #     "Adoption records in this application are demonstration data, not official NYC Parks donation records.",
+        # ],
         "bench_count": len(benches),
         "trail_count": len(trail_features),
         "benches_skipped_outside_park": skipped,
