@@ -45,13 +45,16 @@ function pinIcon(color, selected, dashed = false) {
   });
 }
 
-function proposedIcon() {
+function proposedIcon(selected = false) {
+  // Slightly smaller than bench pins (22→28); grow on select the same way.
+  const size = selected ? 28 : 22;
+  const glyph = selected ? 22 : 16;
   return L.divIcon({
     className: "bench-pin",
-    iconSize: [22, 22],
-    iconAnchor: [11, 11],
-    popupAnchor: [0, -10],
-    html: `<span class="proposal-glyph" aria-hidden="true"></span>`,
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
+    popupAnchor: [0, -size / 2],
+    html: `<span class="proposal-glyph" style="width:${glyph}px;height:${glyph}px;margin:${(size - glyph) / 2}px" aria-hidden="true"></span>`,
   });
 }
 
@@ -100,24 +103,26 @@ function popupHtml(bench) {
   if (bench.description) extra.push(`<dt>Description</dt><dd>${escapeHtml(bench.description)}</dd>`);
   if (bench.notes) extra.push(`<dt>Notes</dt><dd>${escapeHtml(bench.notes)}</dd>`);
 
-  const mapsLink = `<p><a href="${escapeHtml(bench.google_maps_url || googleMapsUrl(bench.latitude, bench.longitude))}" target="_blank" rel="noopener noreferrer">View in Google Maps</a></p>`;
+  const mapsLink = `<a class="popup-maps-link" href="${escapeHtml(bench.google_maps_url || googleMapsUrl(bench.latitude, bench.longitude))}" target="_blank" rel="noopener noreferrer">View in Google Maps</a>`;
 
   return `
     <article class="popup-card">
-      <h3>${escapeHtml(bench.gis_name || prettyId(bench.bench_id))}</h3>
-      <dl>
-        <dt>Bench ID</dt><dd>${escapeHtml(bench.bench_id)}</dd>
-        <dt>Coordinates</dt><dd>${bench.latitude.toFixed(6)}, ${bench.longitude.toFixed(6)}</dd>
-        <dt>Adoption status</dt><dd>${escapeHtml(adoptionStatusLabel(bench.adoption_status))}</dd>
-        ${adopteeBlock}
-        <dt>Information source</dt><dd>${escapeHtml(infoSourceLabel(bench.info_source))}</dd>
-        <dt>Verification</dt><dd>${escapeHtml(verificationLabel(bench.verification_status))}</dd>
-        <dt>GIS reference</dt><dd>${escapeHtml(displayValue(bench.gis_source))}</dd>
-        ${extra.join("")}
-      </dl>
-      ${mapsLink}
-      ${sample}
-      ${crowdNote}
+      <div class="popup-card-body">
+        <h3>${escapeHtml(bench.gis_name || prettyId(bench.bench_id))}</h3>
+        <dl>
+          <dt>Bench ID</dt><dd>${escapeHtml(bench.bench_id)}</dd>
+          <dt>Coordinates</dt><dd>${bench.latitude.toFixed(6)}, ${bench.longitude.toFixed(6)}</dd>
+          <dt>Adoption status</dt><dd>${escapeHtml(adoptionStatusLabel(bench.adoption_status))}</dd>
+          ${adopteeBlock}
+          <dt>Information source</dt><dd>${escapeHtml(infoSourceLabel(bench.info_source))}</dd>
+          <dt>Verification</dt><dd>${escapeHtml(verificationLabel(bench.verification_status))}</dd>
+          <dt>GIS reference</dt><dd>${escapeHtml(displayValue(bench.gis_source))}</dd>
+          ${extra.join("")}
+        </dl>
+        ${sample}
+        ${crowdNote}
+      </div>
+      <div class="popup-card-footer">${mapsLink}</div>
     </article>
   `;
 }
@@ -137,6 +142,8 @@ export default function MapCanvas({
   proposals,
   filter,
   selectedId,
+  selectedProposalId,
+  onSelectProposal,
   proposeMode,
   addExistingMode,
   draftProposal,
@@ -153,6 +160,7 @@ export default function MapCanvas({
   const layersRef = useRef({});
   const draftMarkerRef = useRef(null);
   const existingDraftRef = useRef(null);
+  const proposalMarkersRef = useRef(new Map());
   const onSelectRef = useRef(onSelectBench);
   const parkRef = useRef(park);
   const proposeClickRef = useRef(onProposeClick);
@@ -162,6 +170,8 @@ export default function MapCanvas({
   const outsideRef = useRef(onOutsidePark);
   const proposeModeRef = useRef(proposeMode);
   const addExistingModeRef = useRef(addExistingMode);
+  const onSelectProposalRef = useRef(onSelectProposal);
+  onSelectProposalRef.current = onSelectProposal;
   onSelectRef.current = onSelectBench;
   parkRef.current = park;
   proposeClickRef.current = onProposeClick;
@@ -199,7 +209,10 @@ export default function MapCanvas({
     const handlePlacementEvent = (event) => {
       const inPropose = proposeModeRef.current;
       const inAddExisting = addExistingModeRef.current;
-      if (!inPropose && !inAddExisting) return;
+      if (!inPropose && !inAddExisting) {
+        onSelectRef.current?.(null); // click away → deselect
+        return;
+      }
       L.DomEvent.stopPropagation(event);
       const { lat, lng } = event.latlng;
       const parkFc = parkRef.current;
@@ -289,15 +302,14 @@ export default function MapCanvas({
     visibleBenches.forEach((bench) => {
       const selected = bench.bench_id === selectedId;
       const color = benchPinColor(bench);
-      const dashed = bench.info_source === "crowdsourced" && bench.verification_status !== "verified";
       const marker = L.marker([bench.latitude, bench.longitude], {
-        icon: pinIcon(color, selected, dashed),
+        icon: pinIcon(color, selected, false),
         zIndexOffset: selected ? 1000 : 0,
         keyboard: true,
         title: `${adoptionStatusLabel(bench.adoption_status)} — ${bench.bench_id}`,
         alt: `${adoptionStatusLabel(bench.adoption_status)} bench ${bench.bench_id}`,
       });
-      marker.bindPopup(popupHtml(bench), { maxWidth: 320 });
+      marker.bindPopup(popupHtml(bench), { maxWidth: 300, className: "bench-popup" });
       marker.on("click", (event) => {
         L.DomEvent.stopPropagation(event);
         onSelectRef.current?.(bench.bench_id);
@@ -323,14 +335,17 @@ export default function MapCanvas({
     const group = layersRef.current.proposals;
     if (!group) return;
     group.clearLayers();
+    proposalMarkersRef.current.clear();
     proposals.forEach((proposal) => {
+      const selected = proposal.proposal_id === selectedProposalId;
       const marker = L.marker([proposal.latitude, proposal.longitude], {
-        icon: proposedIcon(),
+        icon: proposedIcon(selected),
         title: `Proposed bench ${proposal.proposal_id}`,
-        zIndexOffset: 400,
+        zIndexOffset: selected ? 1000 : 400,
       });
-      marker.bindPopup(`
-        <article class="popup-card">
+      marker.bindPopup(
+        `<article class="popup-card">
+        <div class="popup-card-body">
           <h3>Proposed location</h3>
           <p class="popup-note">This is a suggested bench location, not an existing bench in the inventory.</p>
           <dl>
@@ -341,11 +356,32 @@ export default function MapCanvas({
             <dt>Name</dt><dd>${escapeHtml(proposal.proposer_name || "Not provided")}</dd>
             <dt>Reason</dt><dd>${escapeHtml(proposal.reason)}</dd>
           </dl>
-        </article>
-      `);
+          </div>
+        </article>`,
+        { maxWidth: 320 }
+      );
+      marker.on("click", (event) => {
+        L.DomEvent.stopPropagation(event);
+        onSelectProposalRef.current?.(proposal.proposal_id);
+      });
       marker.addTo(group);
+      proposalMarkersRef.current.set(proposal.proposal_id, marker);
     });
   }, [proposals]);
+
+  // Update size in place on select so the popup is not destroyed (avoids double-click).
+  useEffect(() => {
+    proposalMarkersRef.current.forEach((marker, id) => {
+      const selected = id === selectedProposalId;
+      marker.setIcon(proposedIcon(selected));
+      marker.setZIndexOffset(selected ? 1000 : 400);
+      if (selected) {
+        if (!marker.isPopupOpen()) marker.openPopup();
+      } else if (marker.isPopupOpen()) {
+        marker.closePopup();
+      }
+    });
+  }, [selectedProposalId]);
 
   useEffect(() => {
     const group = layersRef.current.draft;
@@ -402,6 +438,7 @@ export default function MapCanvas({
 
   useEffect(() => {
     const group = layersRef.current.existingDraft;
+    const map = mapRef.current;
     if (!group) return;
 
     if (!draftExisting) {
@@ -418,6 +455,11 @@ export default function MapCanvas({
         Math.abs(current.lng - draftExisting.longitude) > 1e-9
       ) {
         existing.setLatLng([draftExisting.latitude, draftExisting.longitude]);
+        existing._vcpLastValid = {
+          latitude: draftExisting.latitude,
+          longitude: draftExisting.longitude,
+        };
+        map?.panTo([draftExisting.latitude, draftExisting.longitude], { animate: true });
       }
       return;
     }
@@ -451,6 +493,7 @@ export default function MapCanvas({
     };
     marker.addTo(group);
     existingDraftRef.current = marker;
+    map?.panTo([draftExisting.latitude, draftExisting.longitude], { animate: true });
   }, [draftExisting]);
 
   useEffect(() => {

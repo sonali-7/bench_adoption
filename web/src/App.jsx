@@ -32,6 +32,8 @@ const EMPTY_PROPOSAL_FORM = {
 };
 
 const EMPTY_EXISTING_FORM = {
+  latitude: "",
+  longitude: "",
   description: "",
   adoptionStatus: "unknown",
   adopterName: "",
@@ -41,6 +43,14 @@ const EMPTY_EXISTING_FORM = {
   submitterName: "",
   contact: "",
 };
+
+function parseCoordinatePair(latitude, longitude) {
+  const lat = Number(latitude);
+  const lon = Number(longitude);
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+  if (lat < -90 || lat > 90 || lon < -180 || lon > 180) return null;
+  return { latitude: lat, longitude: lon };
+}
 
 export default function App() {
   const [tab, setTab] = useState("explore");
@@ -68,6 +78,7 @@ export default function App() {
   const [existingForm, setExistingForm] = useState(EMPTY_EXISTING_FORM);
   const [existingError, setExistingError] = useState("");
   const [existingBusy, setExistingBusy] = useState(false);
+  const [selectedProposalId, setSelectedProposalId] = useState(null);
 
   const refresh = useCallback(async () => {
     const [benchPayload, proposalPayload] = await Promise.all([api.benches(), api.proposals()]);
@@ -197,13 +208,17 @@ export default function App() {
 
   async function submitExistingBench(event) {
     event.preventDefault();
-    if (!draftExisting) return;
+    const coords = parseCoordinatePair(existingForm.latitude, existingForm.longitude);
+    if (!coords) {
+      setExistingError("Enter a valid latitude and longitude for the bench location.");
+      return;
+    }
     setExistingBusy(true);
     setExistingError("");
     try {
       const result = await api.crowdsourceBench({
-        latitude: draftExisting.latitude,
-        longitude: draftExisting.longitude,
+        latitude: coords.latitude,
+        longitude: coords.longitude,
         description: existingForm.description,
         adoptionStatus: existingForm.adoptionStatus,
         adopterName: existingForm.adopterName,
@@ -225,6 +240,20 @@ export default function App() {
     } finally {
       setExistingBusy(false);
     }
+  }
+
+  function syncExistingCoordsFromForm(latitude, longitude) {
+    setExistingForm((prev) => ({ ...prev, latitude, longitude }));
+    setDraftExisting(parseCoordinatePair(latitude, longitude));
+  }
+
+  function applyExistingCoordsFromMap(latitude, longitude) {
+    setExistingForm((prev) => ({
+      ...prev,
+      latitude: latitude.toFixed(6),
+      longitude: longitude.toFixed(6),
+    }));
+    setDraftExisting({ latitude, longitude });
   }
 
   function resetAdoptionForm() {
@@ -329,7 +358,7 @@ export default function App() {
 
       {addExistingMode ? (
         <p className="notice propose-mode-banner" role="status">
-          Add existing bench — click the physical bench location on the map inside the park boundary.
+          Add existing bench — enter coordinates in the form, or click the location on the map.
           <button type="button" className="text-btn" onClick={() => exitPlacementModes()}>
             Cancel
           </button>
@@ -426,7 +455,7 @@ export default function App() {
             park={park}
             trails={trails}
             benches={mapBenches}
-            proposals={tab === "all" ? proposals : []}
+            proposals={tab === "explore" && filter === "all" ? proposals : []}
             filter={tab === "explore" ? filter : "all"}
             selectedId={selectedId}
             proposeMode={tab === "explore" && proposeMode}
@@ -435,8 +464,9 @@ export default function App() {
             draftExisting={tab === "explore" ? draftExisting : null}
             onSelectBench={(id) => {
               if (tab === "explore") exitPlacementModes();
+              setSelectedProposalId(null);
               setSelectedId(id);
-              if (tab === "adopt") {
+              if (tab === "adopt" && id) {
                 const bench = benches.find((b) => b.bench_id === id);
                 if (canRequestAdoption(bench)) {
                   setAdoptStep(2);
@@ -445,15 +475,21 @@ export default function App() {
                 }
               }
             }}
+            selectedProposalId={selectedProposalId}
+            onSelectProposal={(id) => {
+              exitPlacementModes();
+              setSelectedId(null);
+              setSelectedProposalId(id);
+            }}
             onProposeClick={onProposeClick}
             onProposeMove={onProposeMove}
             onAddExistingClick={({ latitude, longitude }) => {
-              setDraftExisting({ latitude, longitude });
+              applyExistingCoordsFromMap(latitude, longitude);
               setExistingError("");
-              setNotice("Bench marker placed. Drag it to adjust, then complete the form.");
+              setNotice("Coordinates set from the map. Edit them precisely in the form if needed.");
             }}
             onAddExistingMove={({ latitude, longitude }) => {
-              setDraftExisting({ latitude, longitude });
+              applyExistingCoordsFromMap(latitude, longitude);
             }}
             onOutsidePark={() =>
               setNotice("That click is outside Van Cortlandt Park. Place markers inside the official X092 boundary.")
@@ -473,7 +509,7 @@ export default function App() {
               <span className="swatch yellow" /> Request pending
             </li>
             <li>
-              <span className="swatch blue dashed" /> Crowdsourced (unverified)
+              <span className="swatch blue" /> Crowdsourced (unverified)
             </li>
             <li>
               <span className="swatch amber diamond" /> Proposed location
@@ -501,6 +537,7 @@ export default function App() {
               draftExisting={draftExisting}
               existingForm={existingForm}
               setExistingForm={setExistingForm}
+              onExistingCoordsChange={syncExistingCoordsFromForm}
               existingError={existingError}
               existingBusy={existingBusy}
               onSubmitProposal={submitProposal}
@@ -549,6 +586,7 @@ function ExplorePanel({
   draftExisting,
   existingForm,
   setExistingForm,
+  onExistingCoordsChange,
   existingError,
   existingBusy,
   onSubmitProposal,
@@ -557,16 +595,42 @@ function ExplorePanel({
   onCancelDraft,
   meta,
 }) {
-  if (draftExisting) {
+  if (addExistingMode) {
     return (
       <section>
         <h2>Add an existing bench</h2>
         <p className="hint">
-          Marker coordinates: {draftExisting.latitude.toFixed(6)}, {draftExisting.longitude.toFixed(6)}
-          <br />
-          Drag the teal marker on the map to adjust. This creates a crowdsourced record pending verification.
+          Enter the bench&apos;s latitude and longitude, or click/drag on the map. The marker moves to those exact
+          coordinates. Crowdsourced records are pending verification.
         </p>
         <form className="stack" onSubmit={onSubmitExisting}>
+          <label>
+            Latitude
+            <input
+              required
+              inputMode="decimal"
+              placeholder="e.g. 40.897500"
+              value={existingForm.latitude}
+              onChange={(e) => onExistingCoordsChange(e.target.value, existingForm.longitude)}
+            />
+          </label>
+          <label>
+            Longitude
+            <input
+              required
+              inputMode="decimal"
+              placeholder="e.g. -73.884000"
+              value={existingForm.longitude}
+              onChange={(e) => onExistingCoordsChange(existingForm.latitude, e.target.value)}
+            />
+          </label>
+          {draftExisting ? (
+            <p className="hint">
+              Map marker at {draftExisting.latitude.toFixed(6)}, {draftExisting.longitude.toFixed(6)}
+            </p>
+          ) : (
+            <p className="hint">Enter both coordinates to place a marker on the map.</p>
+          )}
           <label>
             Identifying description
             <textarea
@@ -636,7 +700,7 @@ function ExplorePanel({
           </label>
           {existingError ? <p className="error">{existingError}</p> : null}
           <div className="actions">
-            <button type="submit" className="primary" disabled={existingBusy}>
+            <button type="submit" className="primary" disabled={existingBusy || !draftExisting}>
               {existingBusy ? "Saving…" : "Save existing bench"}
             </button>
             <button type="button" className="ghost" onClick={onCancelDraft}>
