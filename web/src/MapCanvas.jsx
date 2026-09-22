@@ -343,20 +343,22 @@ export default function MapCanvas({
         title: `Proposed bench ${proposal.proposal_id}`,
         zIndexOffset: selected ? 1000 : 400,
       });
+      const mapsLink = `<a class="popup-maps-link" href="${escapeHtml(googleMapsUrl(proposal.latitude, proposal.longitude))}" target="_blank" rel="noopener noreferrer">View in Google Maps</a>`;
       marker.bindPopup(
         `<article class="popup-card">
-        <div class="popup-card-body">
-          <h3>Proposed location</h3>
-          <p class="popup-note">This is a suggested bench location, not an existing bench in the inventory.</p>
-          <dl>
-            <dt>Proposal ID</dt><dd>${escapeHtml(proposal.proposal_id)}</dd>
-            <dt>Coordinates</dt><dd>${Number(proposal.latitude).toFixed(6)}, ${Number(proposal.longitude).toFixed(6)}</dd>
-            <dt>Status</dt><dd>${escapeHtml(proposal.status)}</dd>
-            <dt>Submitted</dt><dd>${escapeHtml(String(proposal.submitted_at).slice(0, 10))}</dd>
-            <dt>Name</dt><dd>${escapeHtml(proposal.proposer_name || "Not provided")}</dd>
-            <dt>Reason</dt><dd>${escapeHtml(proposal.reason)}</dd>
-          </dl>
+          <div class="popup-card-body">
+            <h3>Proposed location</h3>
+            <p class="popup-note">This is a suggested bench location, not an existing bench in the inventory.</p>
+            <dl>
+              <dt>Proposal ID</dt><dd>${escapeHtml(proposal.proposal_id)}</dd>
+              <dt>Coordinates</dt><dd>${Number(proposal.latitude).toFixed(6)}, ${Number(proposal.longitude).toFixed(6)}</dd>
+              <dt>Status</dt><dd>${escapeHtml(proposal.status)}</dd>
+              <dt>Submitted</dt><dd>${escapeHtml(String(proposal.submitted_at).slice(0, 10))}</dd>
+              <dt>Name</dt><dd>${escapeHtml(proposal.proposer_name || "Not provided")}</dd>
+              <dt>Reason</dt><dd>${escapeHtml(proposal.reason)}</dd>
+            </dl>
           </div>
+          <div class="popup-card-footer">${mapsLink}</div>
         </article>`,
         { maxWidth: 320 }
       );
