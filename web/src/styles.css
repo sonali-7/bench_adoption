@@ -427,7 +427,8 @@ textarea {
 }
 
 .stack>label,
-.stack fieldset {
+.stack fieldset,
+.stack>.duration-block {
   display: grid;
   gap: 0.3rem;
 }
@@ -438,13 +439,6 @@ textarea {
   border-radius: 0.55rem;
   padding: 0.55rem 0.65rem;
   background: white;
-}
-
-.stack fieldset,
-.duration-fieldset {
-  border: 1px solid var(--line);
-  border-radius: 0.7rem;
-  padding: 0.7rem;
 }
 
 .choice-list {

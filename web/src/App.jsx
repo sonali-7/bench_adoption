@@ -22,6 +22,7 @@ const EMPTY_ADOPT_FORM = {
   requesterName: "",
   contact: "",
   durationMonths: 36,
+  customDuration: false,
   message: "",
 };
 
@@ -187,7 +188,10 @@ export default function App() {
         benchId: selected.bench_id,
         requesterName: adoptForm.requesterName,
         contact: adoptForm.contact,
-        durationMonths: Number(adoptForm.durationMonths),
+        durationMonths: (() => {
+          const n = Number(adoptForm.durationMonths);
+          return Number.isFinite(n) ? Math.round(n) : n;
+        })(),
         message: adoptForm.message,
       });
       setConfirmation(result);
@@ -1024,6 +1028,13 @@ function AdoptPanel({
           className="stack"
           onSubmit={(e) => {
             e.preventDefault();
+            const months = Number(form.durationMonths);
+            if (
+              form.customDuration &&
+              (!Number.isInteger(months) || months < 1 || months > 120)
+            ) {
+              return;
+            }
             setStep(4);
           }}
         >
@@ -1044,23 +1055,58 @@ function AdoptPanel({
               onChange={(e) => setForm({ ...form, contact: e.target.value })}
             />
           </label>
-          <fieldset className="duration-fieldset">
-            <legend>Desired adoption duration</legend>
-            <div className="choice-list">
+          <div className="duration-block">
+            <span id="duration-label">Desired adoption duration</span>
+            <div className="choice-list" role="radiogroup" aria-labelledby="duration-label">
               {DURATIONS.map((item) => (
                 <label key={item.months} className="choice">
                   <input
                     type="radio"
                     name="duration"
                     value={item.months}
-                    checked={Number(form.durationMonths) === item.months}
-                    onChange={() => setForm({ ...form, durationMonths: item.months })}
+                    checked={!form.customDuration && Number(form.durationMonths) === item.months}
+                    onChange={() =>
+                      setForm({ ...form, durationMonths: item.months, customDuration: false })
+                    }
                   />
                   <span>{item.label}</span>
                 </label>
               ))}
+              <label className="choice">
+                <input
+                  type="radio"
+                  name="duration"
+                  value="custom"
+                  checked={Boolean(form.customDuration)}
+                  onChange={() =>
+                    setForm({
+                      ...form,
+                      customDuration: true,
+                      durationMonths:
+                        DURATIONS.some((d) => d.months === Number(form.durationMonths))
+                          ? ""
+                          : form.durationMonths,
+                    })
+                  }
+                />
+                <span>Choose your own</span>
+              </label>
             </div>
-          </fieldset>
+            {form.customDuration ? (
+              <input
+                type="number"
+                required
+                min={1}
+                max={120}
+                step={1}
+                inputMode="numeric"
+                placeholder="Duration in months (1–120)"
+                aria-label="Custom adoption duration in months"
+                value={form.durationMonths}
+                onChange={(e) => setForm({ ...form, durationMonths: e.target.value })}
+              />
+            ) : null}
+          </div>
           <label>
             Message to Van Cortlandt Park <span className="optional">(optional)</span>
             <textarea

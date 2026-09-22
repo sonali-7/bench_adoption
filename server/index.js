@@ -138,8 +138,10 @@ app.post("/api/adoption-requests", (req, res) => {
   if (!contact || String(contact).trim().length < 3) {
     return res.status(400).json({ error: "Please enter contact information." });
   }
-  if (![12, 36, 60].includes(months)) {
-    return res.status(400).json({ error: "Please choose a 1-, 3-, or 5-year adoption." });
+  if (!Number.isFinite(months) || !Number.isInteger(months) || months < 1 || months > 120) {
+    return res.status(400).json({
+      error: "Please enter an adoption duration between 1 and 120 months.",
+    });
   }
   try {
     const result = dbApi.submitAdoptionRequest(db, {
